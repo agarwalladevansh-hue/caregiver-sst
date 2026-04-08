@@ -189,6 +189,30 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "Backend running", timestamp: new Date().toISOString() });
 });
 
+/**
+ * POST /api/openenv/reset
+ * OpenEnv reset compatibility endpoint.
+ */
+app.post("/api/openenv/reset", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    message: "OpenEnv reset successful",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * POST /api/openenv/validate
+ * OpenEnv validate compatibility endpoint.
+ */
+app.post("/api/openenv/validate", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    message: "OpenEnv validate successful",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Serve frontend assets when bundled in a single container (Hugging Face Spaces).
 const frontendDistPath = path.join(__dirname, "dist");
 if (fs.existsSync(frontendDistPath)) {
