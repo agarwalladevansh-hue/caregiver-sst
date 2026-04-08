@@ -66,7 +66,15 @@ const runPythonInference = (observationData) => {
         reject(new Error(`Python error: ${stderr}`));
       } else {
         try {
-          const result = JSON.parse(stdout);
+          const jsonLine = stdout
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line.startsWith("{") && line.endsWith("}"))
+            .pop();
+          if (!jsonLine) {
+            throw new Error(`No JSON payload found in Python output: ${stdout}`);
+          }
+          const result = JSON.parse(jsonLine);
           resolve(result);
         } catch (e) {
           reject(new Error(`Failed to parse Python output: ${stdout}`));

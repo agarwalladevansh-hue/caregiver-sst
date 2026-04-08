@@ -21,7 +21,7 @@ COPY backend/package*.json ./
 RUN npm install --production
 
 # Install Python dependencies
-RUN pip3 install --no-cache-dir --break-system-packages numpy gymnasium stable-baselines3
+RUN pip3 install --no-cache-dir --break-system-packages numpy gymnasium stable-baselines3 openai
 
 # Copy backend server and runtime files
 COPY backend/server.js ./server.js

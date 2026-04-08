@@ -8,6 +8,13 @@ import sys
 import json
 import numpy as np
 import os
+from openai import OpenAI
+
+API_BASE_URL = os.getenv("API_BASE_URL", "your-active-endpoint")
+MODEL_NAME = os.getenv("MODEL_NAME", "your-model-name")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
 
 def load_model_prediction(observation):
     """Try to load the trained PPO model and get prediction."""
@@ -90,11 +97,15 @@ def heuristic_prediction(observation):
     return best_caregiver, confidence
 
 def main():
+    print("START")
     if len(sys.argv) < 2:
+        print("STEP: doing xyz")
         print(json.dumps({"error": "No observation data provided"}))
+        print("END")
         return
 
     try:
+        print("STEP: doing xyz")
         # Parse observation from Node.js
         observation_data = json.loads(sys.argv[1])
         observation = np.array(observation_data, dtype=np.float32)
@@ -113,9 +124,11 @@ def main():
         }
         
         print(json.dumps(result))
+        print("END")
         
     except Exception as e:
         print(json.dumps({"error": str(e)}), file=sys.stderr)
+        print("END")
         sys.exit(1)
 
 if __name__ == "__main__":
