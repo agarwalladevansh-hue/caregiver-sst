@@ -1,68 +1,76 @@
+import numpy as np
 import gradio as gr
-from huggingface_hub import InferenceClient
+
+from env.carematch_env import CareMatchEnv
 
 
-def respond(
-    message,
-    history: list[dict[str, str]],
-    system_message,
-    max_tokens,
-    temperature,
-    top_p,
-    hf_token: gr.OAuthToken,
-):
+env = CareMatchEnv()
+current_obs = None
+
+
+def _format_obs(obs: np.ndarray) -> str:
+    return np.array2string(obs, precision=3, suppress_small=True)
+
+
+def reset_environment(seed: int | None):
     """
-    For more information on `huggingface_hub` Inference API support, please check the docs: https://huggingface.co/docs/huggingface_hub/v0.22.2/en/guides/inference
+    Reset the Gymnasium env directly in Python (no HTTP call).
+    Gymnasium 0.26+ returns (observation, info).
     """
-    client = InferenceClient(token=hf_token.token, model="openai/gpt-oss-20b")
-
-    messages = [{"role": "system", "content": system_message}]
-
-    messages.extend(history)
-
-    messages.append({"role": "user", "content": message})
-
-    response = ""
-
-    for message in client.chat_completion(
-        messages,
-        max_tokens=max_tokens,
-        stream=True,
-        temperature=temperature,
-        top_p=top_p,
-    ):
-        choices = message.choices
-        token = ""
-        if len(choices) and choices[0].delta.content:
-            token = choices[0].delta.content
-
-        response += token
-        yield response
+    global current_obs
+    obs, info = env.reset(seed=seed if seed is not None else None)
+    current_obs = obs
+    return _format_obs(obs), str(info), "Environment reset successful."
 
 
-"""
-For information on how to customize the ChatInterface, peruse the gradio docs: https://www.gradio.app/docs/chatinterface
-"""
-chatbot = gr.ChatInterface(
-    respond,
-    additional_inputs=[
-        gr.Textbox(value="You are a friendly Chatbot.", label="System message"),
-        gr.Slider(minimum=1, maximum=2048, value=512, step=1, label="Max new tokens"),
-        gr.Slider(minimum=0.1, maximum=4.0, value=0.7, step=0.1, label="Temperature"),
-        gr.Slider(
-            minimum=0.1,
-            maximum=1.0,
-            value=0.95,
-            step=0.05,
-            label="Top-p (nucleus sampling)",
-        ),
-    ],
-)
+def run_match(action: int):
+    """
+    Take one env step after reset.
+    """
+    global current_obs
+    if current_obs is None:
+        return "[]", "{}", "Please click 'Reset Environment' first."
 
-with gr.Blocks() as demo:
-    with gr.Sidebar():
-        gr.LoginButton()
-    chatbot.render()
+    next_obs, reward, terminated, truncated, info = env.step(action)
+    current_obs = next_obs
+    status = (
+        f"Action={action} | Reward={reward:.2f} | "
+        f"Terminated={terminated} | Truncated={truncated}"
+    )
+    return _format_obs(next_obs), str(info), status
+
+
+with gr.Blocks(title="CareMatch RL") as demo:
+    gr.Markdown("## CareMatch RL - Gymnasium Environment Playground")
+    gr.Markdown(
+        "This Space calls `CareMatchEnv.reset()` and `step()` directly in Python. "
+        "No POST request to `/reset` is used."
+    )
+
+    with gr.Row():
+        seed_input = gr.Number(value=42, precision=0, label="Seed (optional)")
+        action_input = gr.Slider(
+            minimum=0, maximum=4, value=0, step=1, label="Caregiver Action"
+        )
+
+    with gr.Row():
+        reset_btn = gr.Button("Reset Environment", variant="primary")
+        step_btn = gr.Button("Run One Step")
+
+    obs_output = gr.Textbox(label="Observation", lines=6)
+    info_output = gr.Textbox(label="Info", lines=3)
+    status_output = gr.Textbox(label="Status", lines=2)
+
+    reset_btn.click(
+        fn=reset_environment,
+        inputs=[seed_input],
+        outputs=[obs_output, info_output, status_output],
+    )
+    step_btn.click(
+        fn=run_match,
+        inputs=[action_input],
+        outputs=[obs_output, info_output, status_output],
+    )
 
 
 if __name__ == "__main__":
