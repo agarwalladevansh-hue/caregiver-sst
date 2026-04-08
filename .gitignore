@@ -1,0 +1,40 @@
+node_modules/
+*.pyc
+__pycache__/
+.venv
+.env
+.env.local
+*.log
+dist/
+build/
+.DS_Store
+carematch_logs/
+*.zip
+
+# Docker
+.docker/
+docker-compose.override.yml
+logs/
+volumes/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.AppleDouble
+.LSOverride
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
