@@ -2,9 +2,10 @@ const express = require("express");
 const cors = require("cors");
 const { spawn } = require("child_process");
 const path = require("path");
+const fs = require("fs");
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 7860;
 
 // Middleware
 app.use(cors());
@@ -188,8 +189,20 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "Backend running", timestamp: new Date().toISOString() });
 });
 
+// Serve frontend assets when bundled in a single container (Hugging Face Spaces).
+const frontendDistPath = path.join(__dirname, "dist");
+if (fs.existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath));
+  app.get("*", (req, res) => {
+    if (req.path.startsWith("/api")) {
+      return res.status(404).json({ error: "API endpoint not found" });
+    }
+    return res.sendFile(path.join(frontendDistPath, "index.html"));
+  });
+}
+
 // Start server
 app.listen(PORT, () => {
-  console.log(`✓ CareMatch Backend running on http://localhost:${PORT}`);
+  console.log(`✓ CareMatch server running on http://localhost:${PORT}`);
   console.log(`  API available at http://localhost:${PORT}/api`);
 });
