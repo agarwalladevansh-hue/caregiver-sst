@@ -8,6 +8,26 @@ import sys
 import json
 import numpy as np
 import os
+
+
+def _ensure_stdout_line_buffered() -> None:
+    """Validators often pipe stdout; default block buffering can hide [START]/[STEP]/[END]."""
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(line_buffering=True)
+        else:
+            sys.stdout = os.fdopen(sys.stdout.fileno(), "w", buffering=1)
+    except Exception:
+        pass
+
+
+def _out(line: str) -> None:
+    """Always write to real stdout and flush (required for subprocess validators)."""
+    sys.stdout.write(line + "\n")
+    sys.stdout.flush()
+
+
+_ensure_stdout_line_buffered()
 try:
     from openai import OpenAI
 except ImportError:
@@ -102,32 +122,29 @@ def heuristic_prediction(observation):
 TASK_NAME = "carematch_inference"
 
 
-def _emit(line: str) -> None:
-    print(line, flush=True)
-
-
 def main():
-    # Structured blocks for validators (stdout, flushed — not stderr)
-    _emit(f"[START] task={TASK_NAME}")
+    # First bytes on stdout must include [START] for piped validators
+    _out(f"[START] task={TASK_NAME}")
     if len(sys.argv) < 2:
-        _emit("[STEP] step=0 status=error reason=no_observation")
-        _emit(json.dumps({"error": "No observation data provided"}))
-        _emit(f"[END] task={TASK_NAME} score=0.0 steps=0 status=error")
+        _out("[STEP] step=0 status=error reason=no_observation")
+        _out(
+            f"[START] task={TASK_NAME}, [STEP] step=0 reward=0.0, "
+            f"[END] task={TASK_NAME} score=0.0 steps=0 status=error"
+        )
+        _out(json.dumps({"error": "No observation data provided"}))
+        _out(f"[END] task={TASK_NAME} score=0.0 steps=0 status=error")
         return
 
     try:
-        _emit("[STEP] step=1 status=parsing_observation")
-        # Parse observation from Node.js
+        _out("[STEP] step=1 status=parsing_observation")
         observation_data = json.loads(sys.argv[1])
         observation = np.array(observation_data, dtype=np.float32)
 
-        _emit("[STEP] step=2 status=model_inference")
-        # Try to use trained model first
+        _out("[STEP] step=2 status=model_inference")
         action, confidence = load_model_prediction(observation)
 
-        # Fall back to heuristic if model not available
         if action is None:
-            _emit("[STEP] step=3 status=heuristic_fallback")
+            _out("[STEP] step=3 status=heuristic_fallback")
             action, confidence = heuristic_prediction(observation)
 
         result = {
@@ -135,20 +152,28 @@ def main():
             "confidence": float(confidence),
         }
         score = float(confidence)
-        _emit(
+        steps_total = 4
+        _out(
             f"[STEP] step=4 reward={score:.4f} action={int(action)} "
             f"confidence={score:.4f}"
         )
-        _emit(json.dumps(result))
-        _emit(
-            f"[END] task={TASK_NAME} score={score:.4f} steps=4 status=ok"
+        # Doc-style single line (commas between blocks) for strict parsers
+        _out(
+            f"[START] task={TASK_NAME}, [STEP] step=1 reward={score:.4f}, "
+            f"[END] task={TASK_NAME} score={score:.4f} steps={steps_total}"
         )
+        _out(json.dumps(result))
+        _out(f"[END] task={TASK_NAME} score={score:.4f} steps={steps_total} status=ok")
 
     except Exception as e:
         err = str(e).replace("\n", " ")
-        _emit(f"[STEP] step=0 status=exception error={err!r}")
-        _emit(json.dumps({"error": str(e)}))
-        _emit(f"[END] task={TASK_NAME} score=0.0 steps=0 status=error")
+        _out(f"[STEP] step=0 status=exception error={err!r}")
+        _out(
+            f"[START] task={TASK_NAME}, [STEP] step=0 reward=0.0, "
+            f"[END] task={TASK_NAME} score=0.0 steps=0 status=error"
+        )
+        _out(json.dumps({"error": str(e)}))
+        _out(f"[END] task={TASK_NAME} score=0.0 steps=0 status=error")
         sys.exit(1)
 
 if __name__ == "__main__":

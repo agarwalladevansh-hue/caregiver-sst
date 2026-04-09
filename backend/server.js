@@ -46,6 +46,7 @@ const runPythonInference = (observationData) => {
       : path.join(__dirname, "inference.py");
     
     const pythonProcess = spawn(pythonCmd, [
+      "-u",
       inferencePath,
       JSON.stringify(observationData),
     ]);
