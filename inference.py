@@ -8,13 +8,16 @@ import sys
 import json
 import numpy as np
 import os
-from openai import OpenAI
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
 
 API_BASE_URL = os.getenv("API_BASE_URL", "your-active-endpoint")
 MODEL_NAME = os.getenv("MODEL_NAME", "your-model-name")
 HF_TOKEN = os.getenv("HF_TOKEN")
 
-client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN) if OpenAI is not None else None
 
 def load_model_prediction(observation):
     """Try to load the trained PPO model and get prediction."""
