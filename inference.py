@@ -99,39 +99,56 @@ def heuristic_prediction(observation):
     confidence = min(0.95, 0.5 + (best_score * 0.5))
     return best_caregiver, confidence
 
+TASK_NAME = "carematch_inference"
+
+
+def _emit(line: str) -> None:
+    print(line, flush=True)
+
+
 def main():
-    print("START")
+    # Structured blocks for validators (stdout, flushed — not stderr)
+    _emit(f"[START] task={TASK_NAME}")
     if len(sys.argv) < 2:
-        print("STEP: doing xyz")
-        print(json.dumps({"error": "No observation data provided"}))
-        print("END")
+        _emit("[STEP] step=0 status=error reason=no_observation")
+        _emit(json.dumps({"error": "No observation data provided"}))
+        _emit(f"[END] task={TASK_NAME} score=0.0 steps=0 status=error")
         return
 
     try:
-        print("STEP: doing xyz")
+        _emit("[STEP] step=1 status=parsing_observation")
         # Parse observation from Node.js
         observation_data = json.loads(sys.argv[1])
         observation = np.array(observation_data, dtype=np.float32)
-        
+
+        _emit("[STEP] step=2 status=model_inference")
         # Try to use trained model first
         action, confidence = load_model_prediction(observation)
-        
+
         # Fall back to heuristic if model not available
         if action is None:
+            _emit("[STEP] step=3 status=heuristic_fallback")
             action, confidence = heuristic_prediction(observation)
-        
-        # Return result as JSON
+
         result = {
             "action": int(action),
             "confidence": float(confidence),
         }
-        
-        print(json.dumps(result))
-        print("END")
-        
+        score = float(confidence)
+        _emit(
+            f"[STEP] step=4 reward={score:.4f} action={int(action)} "
+            f"confidence={score:.4f}"
+        )
+        _emit(json.dumps(result))
+        _emit(
+            f"[END] task={TASK_NAME} score={score:.4f} steps=4 status=ok"
+        )
+
     except Exception as e:
-        print(json.dumps({"error": str(e)}), file=sys.stderr)
-        print("END")
+        err = str(e).replace("\n", " ")
+        _emit(f"[STEP] step=0 status=exception error={err!r}")
+        _emit(json.dumps({"error": str(e)}))
+        _emit(f"[END] task={TASK_NAME} score=0.0 steps=0 status=error")
         sys.exit(1)
 
 if __name__ == "__main__":
