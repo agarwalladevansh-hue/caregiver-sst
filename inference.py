@@ -106,34 +106,47 @@ TASK_NAME = "caregiver_matching"
 
 def main():
     if len(sys.argv) < 2:
-        print(json.dumps({"error": "No observation data provided"}), flush=True)
-        print(f"[START] task={TASK_NAME}, [STEP] step=0 reward=0.0, [END] task={TASK_NAME} score=0.0 steps=0 status=error", flush=True)
+        print(f"[START] task={TASK_NAME}", flush=True)
+        print(f"[STEP] step=0 reward=0.0", flush=True)
+        print(f"[END] task={TASK_NAME} score=0.0 steps=0 status=error", flush=True)
         return
 
     try:
+        from env.carematch_env import CareMatchEnv
+        
         observation_data = json.loads(sys.argv[1])
         observation = np.array(observation_data, dtype=np.float32)
 
-        action, confidence = load_model_prediction(observation)
-
-        if action is None:
-            action, confidence = heuristic_prediction(observation)
-
-        result = {
-            "action": int(action),
-            "confidence": float(confidence),
-        }
-        score = float(confidence)
+        env = CareMatchEnv()
+        env.reset()
         
-        print(json.dumps(result), flush=True)
+        # Inject initial observation for the first step
+        env.parent_features = observation[:3]
+        env.caregiver_features = [observation[3 + i*7 : 3 + (i+1)*7] for i in range(5)]
+        env.obs = observation
+        
         print(f"[START] task={TASK_NAME}", flush=True)
+        
+        total_score = 0.0
         for i in range(1, 6):
-            print(f"[STEP] step={i} reward={score:.4f}", flush=True)
-        print(f"[END] task={TASK_NAME} score={score:.4f} steps=5", flush=True)
+            action, confidence = load_model_prediction(observation)
+            if action is None:
+                action, confidence = heuristic_prediction(observation)
+
+            _, reward, _, _, _ = env.step(action)
+            print(f"[STEP] step={i} reward={reward:.4f}", flush=True)
+            total_score += reward
+            
+            # Since CareMatchEnv episodes end in 1 step, we reset to generate a new scenario
+            observation, _ = env.reset()
+
+        avg_score = total_score / 5
+        print(f"[END] task={TASK_NAME} score={avg_score:.4f} steps=5", flush=True)
 
     except Exception as e:
-        print(json.dumps({"error": str(e)}), flush=True)
-        print(f"[START] task={TASK_NAME}, [STEP] step=0 reward=0.0, [END] task={TASK_NAME} score=0.0 steps=0 status=error", flush=True)
+        print(f"[START] task={TASK_NAME}", flush=True)
+        print(f"[STEP] step=0 reward=0.0", flush=True)
+        print(f"[END] task={TASK_NAME} score=0.0 steps=0 status=error", flush=True)
         sys.exit(1)
 
 if __name__ == "__main__":
