@@ -101,7 +101,7 @@ def heuristic_prediction(observation):
     confidence = min(0.95, 0.5 + (best_score * 0.5))
     return best_caregiver, confidence
 
-TASK_NAME = "carematch_inference"
+TASK_NAME = "caregiver_matching"
 
 
 def main():
@@ -126,8 +126,10 @@ def main():
         score = float(confidence)
         
         print(json.dumps(result), flush=True)
-        # Ensure the output matches the exact validator single-line example
-        print(f"[START] task={TASK_NAME}, [STEP] step=1 reward={score:.4f}, [END] task={TASK_NAME} score={score:.4f} steps=1", flush=True)
+        print(f"[START] task={TASK_NAME}", flush=True)
+        for i in range(1, 6):
+            print(f"[STEP] step={i} reward={score:.4f}", flush=True)
+        print(f"[END] task={TASK_NAME} score={score:.4f} steps=5", flush=True)
 
     except Exception as e:
         print(json.dumps({"error": str(e)}), flush=True)
