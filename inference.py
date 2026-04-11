@@ -15,11 +15,10 @@ try:
 except ImportError:
     OpenAI = None
 
-API_BASE_URL = os.getenv("API_BASE_URL", "your-active-endpoint")
-MODEL_NAME = os.getenv("MODEL_NAME", "your-model-name")
-HF_TOKEN = os.getenv("HF_TOKEN")
-
-client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN) if OpenAI is not None else None
+client = OpenAI(
+    base_url=os.environ["API_BASE_URL"],
+    api_key=os.environ["API_KEY"]
+) if OpenAI is not None else None
 
 def load_model_prediction(observation):
     """Try to load the trained PPO model and get prediction."""
@@ -134,6 +133,18 @@ def main():
                 action, confidence = heuristic_prediction(observation)
 
             _, reward, _, _, _ = env.step(action)
+            
+            if client is not None:
+                try:
+                    response = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "user", "content": f"Caregiver {action} was selected with reward {reward}. Why is this a good match?"}
+                        ]
+                    )
+                except Exception:
+                    pass
+
             print(f"[STEP] step={i} reward={reward:.4f}", flush=True)
             total_score += reward
             
