@@ -10,24 +10,6 @@ import numpy as np
 import os
 
 
-def _ensure_stdout_line_buffered() -> None:
-    """Validators often pipe stdout; default block buffering can hide [START]/[STEP]/[END]."""
-    try:
-        if hasattr(sys.stdout, "reconfigure"):
-            sys.stdout.reconfigure(line_buffering=True)
-        else:
-            sys.stdout = os.fdopen(sys.stdout.fileno(), "w", buffering=1)
-    except Exception:
-        pass
-
-
-def _out(line: str) -> None:
-    """Always write to real stdout and flush (required for subprocess validators)."""
-    sys.stdout.write(line + "\n")
-    sys.stdout.flush()
-
-
-_ensure_stdout_line_buffered()
 try:
     from openai import OpenAI
 except ImportError:
@@ -123,28 +105,18 @@ TASK_NAME = "carematch_inference"
 
 
 def main():
-    # First bytes on stdout must include [START] for piped validators
-    _out(f"[START] task={TASK_NAME}")
     if len(sys.argv) < 2:
-        _out("[STEP] step=0 status=error reason=no_observation")
-        _out(
-            f"[START] task={TASK_NAME}, [STEP] step=0 reward=0.0, "
-            f"[END] task={TASK_NAME} score=0.0 steps=0 status=error"
-        )
-        _out(json.dumps({"error": "No observation data provided"}))
-        _out(f"[END] task={TASK_NAME} score=0.0 steps=0 status=error")
+        print(json.dumps({"error": "No observation data provided"}), flush=True)
+        print(f"[START] task={TASK_NAME}, [STEP] step=0 reward=0.0, [END] task={TASK_NAME} score=0.0 steps=0 status=error", flush=True)
         return
 
     try:
-        _out("[STEP] step=1 status=parsing_observation")
         observation_data = json.loads(sys.argv[1])
         observation = np.array(observation_data, dtype=np.float32)
 
-        _out("[STEP] step=2 status=model_inference")
         action, confidence = load_model_prediction(observation)
 
         if action is None:
-            _out("[STEP] step=3 status=heuristic_fallback")
             action, confidence = heuristic_prediction(observation)
 
         result = {
@@ -152,28 +124,14 @@ def main():
             "confidence": float(confidence),
         }
         score = float(confidence)
-        steps_total = 4
-        _out(
-            f"[STEP] step=4 reward={score:.4f} action={int(action)} "
-            f"confidence={score:.4f}"
-        )
-        # Doc-style single line (commas between blocks) for strict parsers
-        _out(
-            f"[START] task={TASK_NAME}, [STEP] step=1 reward={score:.4f}, "
-            f"[END] task={TASK_NAME} score={score:.4f} steps={steps_total}"
-        )
-        _out(json.dumps(result))
-        _out(f"[END] task={TASK_NAME} score={score:.4f} steps={steps_total} status=ok")
+        
+        print(json.dumps(result), flush=True)
+        # Ensure the output matches the exact validator single-line example
+        print(f"[START] task={TASK_NAME}, [STEP] step=1 reward={score:.4f}, [END] task={TASK_NAME} score={score:.4f} steps=1", flush=True)
 
     except Exception as e:
-        err = str(e).replace("\n", " ")
-        _out(f"[STEP] step=0 status=exception error={err!r}")
-        _out(
-            f"[START] task={TASK_NAME}, [STEP] step=0 reward=0.0, "
-            f"[END] task={TASK_NAME} score=0.0 steps=0 status=error"
-        )
-        _out(json.dumps({"error": str(e)}))
-        _out(f"[END] task={TASK_NAME} score=0.0 steps=0 status=error")
+        print(json.dumps({"error": str(e)}), flush=True)
+        print(f"[START] task={TASK_NAME}, [STEP] step=0 reward=0.0, [END] task={TASK_NAME} score=0.0 steps=0 status=error", flush=True)
         sys.exit(1)
 
 if __name__ == "__main__":
