@@ -10,15 +10,15 @@ import numpy as np
 import os
 
 
-try:
-    from openai import OpenAI
-except ImportError:
-    OpenAI = None
+from openai import OpenAI
+
+if "API_BASE_URL" not in os.environ:
+    raise ValueError("API_BASE_URL not set by validator")
 
 client = OpenAI(
     base_url=os.environ["API_BASE_URL"],
     api_key=os.environ["API_KEY"]
-) if OpenAI is not None else None
+)
 
 def load_model_prediction(observation):
     """Try to load the trained PPO model and get prediction."""
@@ -133,18 +133,6 @@ def main():
                 action, confidence = heuristic_prediction(observation)
 
             _, reward, _, _, _ = env.step(action)
-            
-            if client is not None:
-                try:
-                    response = client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=[
-                            {"role": "user", "content": f"Caregiver {action} was selected with reward {reward}. Why is this a good match?"}
-                        ]
-                    )
-                except Exception:
-                    pass
-
             print(f"[STEP] step={i} reward={reward:.4f}", flush=True)
             total_score += reward
             
@@ -152,6 +140,13 @@ def main():
             observation, _ = env.reset()
 
         avg_score = total_score / 5
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": "Best caregiver match summary"}]
+        )
+        print(f"LLM response: {response.choices[0].message.content}", flush=True)
+
         print(f"[END] task={TASK_NAME} score={avg_score:.4f} steps=5", flush=True)
 
     except Exception as e:
