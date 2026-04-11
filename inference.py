@@ -4,7 +4,10 @@ Called by Node.js backend to make predictions.
 Falls back to heuristic if model not found.
 """
 
+import subprocess
 import sys
+subprocess.run([sys.executable, "-m", "pip", "install", "openai", "-q"], check=True)
+
 import json
 import numpy as np
 import os
