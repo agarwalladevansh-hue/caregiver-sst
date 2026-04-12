@@ -142,21 +142,39 @@ def main():
     
     # ✅ API CALL MUST ALWAYS EXECUTE - OUTSIDE EXCEPTION HANDLER
     try:
+        # Debug: Verify environment variables exist
+        api_base_url = os.environ.get("API_BASE_URL")
+        api_key = os.environ.get("API_KEY")
+        
+        print(f"DEBUG: API_BASE_URL={api_base_url}", flush=True)
+        print(f"DEBUG: API_KEY={'***' if api_key else 'NOT SET'}", flush=True)
+        
+        if not api_base_url or not api_key:
+            raise ValueError("Missing API_BASE_URL or API_KEY environment variables")
+        
+        print(f"DEBUG: Importing OpenAI...", flush=True)
         from openai import OpenAI
+        
+        print(f"DEBUG: Creating OpenAI client with base_url={api_base_url}", flush=True)
         client = OpenAI(
-            base_url=os.environ["API_BASE_URL"],
-            api_key=os.environ["API_KEY"]
+            base_url=api_base_url,
+            api_key=api_key
         )
+        
+        print(f"DEBUG: Making chat completion request...", flush=True)
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": f"Caregiver selected. Average reward {avg_score:.2f}. Summary?"}]
         )
+        
+        print(f"DEBUG: API call successful", flush=True)
         print(f"LLM response: {response.choices[0].message.content}", flush=True)
-    except KeyError as e:
-        print(f"ERROR: Missing environment variable: {e}", flush=True)
+        
+    except ValueError as e:
+        print(f"ERROR: {e}", flush=True)
         sys.exit(1)
     except Exception as e:
-        print(f"ERROR: API call failed: {e}", flush=True)
+        print(f"ERROR: API call failed: {type(e).__name__}: {e}", flush=True)
         sys.exit(1)
     
     # ✅ ALWAYS REACH HERE (API call completed successfully)
