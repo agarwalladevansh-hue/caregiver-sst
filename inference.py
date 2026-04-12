@@ -9,11 +9,7 @@ import json
 import numpy as np
 import os
 
-
-try:
-    from openai import OpenAI
-except ImportError:
-    OpenAI = None
+from env.llm_client import chat_via_submission_proxy
 
 def load_model_prediction(observation):
     """Try to load the trained PPO model and get prediction."""
@@ -99,82 +95,57 @@ TASK_NAME = "caregiver_matching"
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(f"[START] task={TASK_NAME}", flush=True)
-        print(f"[STEP] step=0 reward=0.0", flush=True)
-        print(f"[END] task={TASK_NAME} score=0.0 steps=0 status=error", flush=True)
-        return
-
     print(f"[START] task={TASK_NAME}", flush=True)
     
-    try:
-        from env.carematch_env import CareMatchEnv
-        
-        observation_data = json.loads(sys.argv[1])
-        observation = np.array(observation_data, dtype=np.float32)
-
-        env = CareMatchEnv()
-        env.reset()
-        
-        # Inject initial observation for the first step
-        env.parent_features = observation[:3]
-        env.caregiver_features = [observation[3 + i*7 : 3 + (i+1)*7] for i in range(5)]
-        env.obs = observation
-        
-        total_score = 0.0
-        for i in range(1, 6):
-            action, confidence = load_model_prediction(observation)
-            if action is None:
-                action, confidence = heuristic_prediction(observation)
-
-            _, reward, _, _, _ = env.step(action)
-            print(f"[STEP] step={i} reward={reward:.4f}", flush=True)
-            total_score += reward
-            
-            # Since CareMatchEnv episodes end in 1 step, we reset to generate a new scenario
-            observation, _ = env.reset()
-
-        avg_score = total_score / 5
-
-    except Exception as e:
-        print(f"[STEP] step=0 reward=0.0", flush=True)
-        avg_score = 0.0
+    avg_score = 0.0
+    total_score = 0.0
     
-    # ✅ API CALL MUST ALWAYS EXECUTE - OUTSIDE EXCEPTION HANDLER
+    if len(sys.argv) < 2:
+        print(f"[STEP] step=0 reward=0.0", flush=True)
+    else:
+        try:
+            from env.carematch_env import CareMatchEnv
+            
+            observation_data = json.loads(sys.argv[1])
+            observation = np.array(observation_data, dtype=np.float32)
+
+            env = CareMatchEnv()
+            env.reset()
+            
+            # Inject initial observation for the first step
+            env.parent_features = observation[:3]
+            env.caregiver_features = [observation[3 + i*7 : 3 + (i+1)*7] for i in range(5)]
+            env.obs = observation
+            
+            total_score = 0.0
+            for i in range(1, 6):
+                action, confidence = load_model_prediction(observation)
+                if action is None:
+                    action, confidence = heuristic_prediction(observation)
+
+                _, reward, _, _, _ = env.step(action)
+                print(f"[STEP] step={i} reward={reward:.4f}", flush=True)
+                total_score += reward
+                
+                # Since CareMatchEnv episodes end in 1 step, we reset to generate a new scenario
+                observation, _ = env.reset()
+
+            avg_score = total_score / 5
+        except Exception as e:
+            print(f"[STEP] step=0 reward=0.0", flush=True)
+            avg_score = 0.0
+    
+    # ✅ MANDATORY: Call submission proxy (ALL code paths must reach here)
     try:
-        # Debug: Verify environment variables exist
-        api_base_url = os.environ.get("API_BASE_URL")
-        api_key = os.environ.get("API_KEY")
-        
-        print(f"DEBUG: API_BASE_URL={api_base_url}", flush=True)
-        print(f"DEBUG: API_KEY={'***' if api_key else 'NOT SET'}", flush=True)
-        
-        if not api_base_url or not api_key:
-            raise ValueError("Missing API_BASE_URL or API_KEY environment variables")
-        
-        print(f"DEBUG: Importing OpenAI...", flush=True)
-        from openai import OpenAI
-        
-        print(f"DEBUG: Creating OpenAI client with base_url={api_base_url}", flush=True)
-        client = OpenAI(
-            base_url=api_base_url,
-            api_key=api_key
+        llm_response = chat_via_submission_proxy(
+            f"Caregiver selected. Average reward {avg_score:.2f}. Summary?"
         )
-        
-        print(f"DEBUG: Making chat completion request...", flush=True)
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": f"Caregiver selected. Average reward {avg_score:.2f}. Summary?"}]
-        )
-        
-        print(f"DEBUG: API call successful", flush=True)
-        print(f"LLM response: {response.choices[0].message.content}", flush=True)
-        
-    except ValueError as e:
-        print(f"ERROR: {e}", flush=True)
+        print(f"LLM response: {llm_response}", flush=True)
+    except KeyError as e:
+        print(f"ERROR: Missing environment variable: {e}", flush=True)
         sys.exit(1)
     except Exception as e:
-        print(f"ERROR: API call failed: {type(e).__name__}: {e}", flush=True)
+        print(f"ERROR: API call failed: {e}", flush=True)
         sys.exit(1)
     
     # ✅ ALWAYS REACH HERE (API call completed successfully)

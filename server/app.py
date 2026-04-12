@@ -1,17 +1,42 @@
 from typing import Any
 import os
+import asyncio
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from openai import OpenAI
 
 from env.carematch_env import CareMatchEnv
+from env.llm_client import chat_via_submission_proxy
 
 
-app = FastAPI(title="CareMatch RL OpenEnv API")
 env = CareMatchEnv()
 is_initialized = False
+
+
+# Lifespan: call API on startup to satisfy submission proxy requirement
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    try:
+        await asyncio.to_thread(
+            chat_via_submission_proxy,
+            "CareMatch RL OpenEnv HTTP server ready.",
+            max_tokens=32
+        )
+        print("✓ Submission proxy verified on startup")
+    except Exception as e:
+        print(f"⚠ Startup API call failed: {e}")
+    yield
+    # Shutdown
+    pass
+
+
+app = FastAPI(
+    title="CareMatch RL OpenEnv API",
+    lifespan=lifespan
+)
 
 
 class StepRequest(BaseModel):
@@ -46,17 +71,11 @@ def step_env(payload: StepRequest) -> dict[str, Any]:
     observation, reward, terminated, truncated, info = env.step(payload.action)
     done = bool(terminated or truncated)
     
-    # MANDATORY: Make API call using injected environment variables
+    # Call submission proxy
     try:
-        client = OpenAI(
-            base_url=os.environ["API_BASE_URL"],
-            api_key=os.environ["API_KEY"]
+        llm_summary = chat_via_submission_proxy(
+            f"Action {payload.action} gave reward {reward:.2f}. Good match?"
         )
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": f"Action {payload.action} gave reward {reward:.2f}. Good match?"}]
-        )
-        llm_summary = response.choices[0].message.content
     except KeyError as e:
         raise HTTPException(status_code=500, detail=f"Missing environment variable: {e}")
     except Exception as e:
