@@ -43,11 +43,27 @@ def step_env(payload: StepRequest) -> dict[str, Any]:
 
     observation, reward, terminated, truncated, info = env.step(payload.action)
     done = bool(terminated or truncated)
+    
+    import os
+    from openai import OpenAI
+
+    api_base = os.environ.get("API_BASE_URL")
+    api_key = os.environ.get("API_KEY")
+    llm_summary = ""
+    if api_base and api_key:
+        client = OpenAI(base_url=api_base, api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": f"Action {payload.action} gave reward {reward:.2f}. Good match?"}]
+        )
+        llm_summary = response.choices[0].message.content
+    
     return {
         "observation": observation.tolist(),
         "reward": float(reward),
         "done": done,
         "info": info,
+        "llm_summary": llm_summary,
     }
 
 
