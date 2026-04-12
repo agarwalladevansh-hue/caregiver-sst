@@ -4,24 +4,22 @@ Called by Node.js backend to make predictions.
 Falls back to heuristic if model not found.
 """
 
-import subprocess
 import sys
-subprocess.run([sys.executable, "-m", "pip", "install", "openai", "-q"], check=True)
-
 import json
 import numpy as np
 import os
 
 
-from openai import OpenAI
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
 
-if "API_BASE_URL" not in os.environ:
-    raise ValueError("API_BASE_URL not set by validator")
+API_BASE_URL = os.getenv("API_BASE_URL", "your-active-endpoint")
+MODEL_NAME = os.getenv("MODEL_NAME", "your-model-name")
+HF_TOKEN = os.getenv("HF_TOKEN")
 
-client = OpenAI(
-    base_url=os.environ["API_BASE_URL"],
-    api_key=os.environ["API_KEY"]
-)
+client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN) if OpenAI is not None else None
 
 def load_model_prediction(observation):
     """Try to load the trained PPO model and get prediction."""
@@ -143,13 +141,6 @@ def main():
             observation, _ = env.reset()
 
         avg_score = total_score / 5
-        
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "Best caregiver match summary"}]
-        )
-        print(f"LLM response: {response.choices[0].message.content}", flush=True)
-
         print(f"[END] task={TASK_NAME} score={avg_score:.4f} steps=5", flush=True)
 
     except Exception as e:
