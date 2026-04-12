@@ -136,17 +136,23 @@ def main():
 
         avg_score = total_score / 5
         
-        # Always use the provided API_BASE_URL and API_KEY (required for validator)
-        if OpenAI is not None:
+        # REQUIRED: Always make API call through the provided proxy
+        # Hackathon will inject API_BASE_URL and API_KEY
+        try:
+            from openai import OpenAI
             client = OpenAI(
-                base_url=os.environ.get("API_BASE_URL", "https://api.openai.com/v1"),
-                api_key=os.environ.get("API_KEY", "")
+                base_url=os.environ["API_BASE_URL"],
+                api_key=os.environ["API_KEY"]
             )
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": f"Caregiver selected. Average reward {avg_score:.2f}. Summary?"}]
             )
             print(f"LLM response: {response.choices[0].message.content}", flush=True)
+        except KeyError as e:
+            print(f"ERROR: Missing environment variable: {e}", flush=True)
+        except Exception as e:
+            print(f"LLM call warning: {e}", flush=True)
             
         print(f"[END] task={TASK_NAME} score={avg_score:.4f} steps=5", flush=True)
 
