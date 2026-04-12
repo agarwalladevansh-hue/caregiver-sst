@@ -1,8 +1,10 @@
 from typing import Any
+import os
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from openai import OpenAI
 
 from env.carematch_env import CareMatchEnv
 
@@ -44,19 +46,21 @@ def step_env(payload: StepRequest) -> dict[str, Any]:
     observation, reward, terminated, truncated, info = env.step(payload.action)
     done = bool(terminated or truncated)
     
-    import os
-    from openai import OpenAI
-
-    api_base = os.environ.get("API_BASE_URL")
-    api_key = os.environ.get("API_KEY")
-    llm_summary = ""
-    if api_base and api_key:
-        client = OpenAI(base_url=api_base, api_key=api_key)
+    # MANDATORY: Make API call using injected environment variables
+    try:
+        client = OpenAI(
+            base_url=os.environ["API_BASE_URL"],
+            api_key=os.environ["API_KEY"]
+        )
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": f"Action {payload.action} gave reward {reward:.2f}. Good match?"}]
         )
         llm_summary = response.choices[0].message.content
+    except KeyError as e:
+        raise HTTPException(status_code=500, detail=f"Missing environment variable: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM API call failed: {str(e)}")
     
     return {
         "observation": observation.tolist(),
