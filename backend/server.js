@@ -191,6 +191,66 @@ app.post("/api/predict", async (req, res) => {
 });
 
 /**
+ * POST /api/llm
+ * Makes an LLM call using the provided API_BASE_URL and API_KEY
+ * Body: { messages: [...] }
+ */
+app.post("/api/llm", async (req, res) => {
+  try {
+    const { messages } = req.body;
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "Missing or invalid messages array" });
+    }
+
+    // Get environment variables injected by hackathon
+    const apiBaseUrl = process.env.API_BASE_URL;
+    const apiKey = process.env.API_KEY;
+
+    if (!apiBaseUrl || !apiKey) {
+      console.error("Missing API_BASE_URL or API_KEY environment variables");
+      return res.status(500).json({ 
+        error: "Server not configured with LLM credentials",
+        details: {
+          hasApiBaseUrl: !!apiBaseUrl,
+          hasApiKey: !!apiKey
+        }
+      });
+    }
+
+    console.log(`Making LLM request to ${apiBaseUrl}/chat/completions`);
+
+    // Call the LLM through the hackathon proxy
+    const response = await fetch(`${apiBaseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: "gpt-3.5-turbo",
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: 150
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error("LLM API error:", error);
+      return res.status(response.status).json({ error: error });
+    }
+
+    const result = await response.json();
+    console.log("LLM request successful");
+    res.json({ success: true, response: result });
+  } catch (error) {
+    console.error("LLM endpoint error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/health
  * Health check endpoint
  */
