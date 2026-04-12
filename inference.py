@@ -15,12 +15,6 @@ try:
 except ImportError:
     OpenAI = None
 
-API_BASE_URL = os.getenv("API_BASE_URL", "your-active-endpoint")
-MODEL_NAME = os.getenv("MODEL_NAME", "your-model-name")
-HF_TOKEN = os.getenv("HF_TOKEN")
-
-client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN) if OpenAI is not None else None
-
 def load_model_prediction(observation):
     """Try to load the trained PPO model and get prediction."""
     try:
@@ -141,6 +135,18 @@ def main():
             observation, _ = env.reset()
 
         avg_score = total_score / 5
+        
+        if OpenAI is not None and "API_BASE_URL" in os.environ:
+            client = OpenAI(
+                base_url=os.environ["API_BASE_URL"],
+                api_key=os.environ["API_KEY"]
+            )
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": f"Caregiver selected. Average reward {avg_score:.2f}. Summary?"}]
+            )
+            print(f"LLM response: {response.choices[0].message.content}", flush=True)
+            
         print(f"[END] task={TASK_NAME} score={avg_score:.4f} steps=5", flush=True)
 
     except Exception as e:
