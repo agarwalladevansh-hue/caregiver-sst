@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import './Chatbot.css'
 
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_KEY
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_KEY || ''
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.openai.com/v1'
 const SYSTEM_PROMPT = `You are CareMatch Assistant, a helpful AI for a caregiver matching platform called CareMatch. 
 You help users understand how the system works and answer questions about caregivers, bookings, and the AI matching algorithm.
 Keep responses concise (2-3 sentences max), friendly, and focused on CareMatch features.
@@ -71,7 +72,7 @@ export default function Chatbot() {
 
   const callOpenAI = async (userMessage) => {
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch(`${API_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
